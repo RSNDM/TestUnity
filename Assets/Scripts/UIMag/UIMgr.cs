@@ -80,6 +80,7 @@ public class UIMgr:EventNode
             }
             else
             {
+                Debug.Log("已经创建了一个UI面板：" + cmd.uiName);
                 //从资源管理中使用读取方法获取UI资源（prefab）
                 //ResMgr.Instance.Load(cmd.uiName, new LoadResFinish(cmd));
             }
@@ -170,9 +171,6 @@ public class UIMgr:EventNode
     }
     private void Update()
     {
-        lis c = new lis();
-        GameObject gam = new GameObject();
-        ShowUI("123", typeof(GameObject), c, gam, true);
         if (cmdList.Count>0)
         {
             Command tempcmd = null;
