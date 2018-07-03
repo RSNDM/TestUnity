@@ -51,7 +51,10 @@ public class BaseUI : MonoBehaviour {
     protected virtual void OnInit() { }
     protected virtual void OnAwake() { }
     protected virtual void OnDestroy() { }
-
+    public void UIInit()
+    {
+        OnInit();
+    }
     private void Awake()
     {
         OnAwake();

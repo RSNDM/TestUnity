@@ -5,6 +5,9 @@ using System.Text;
 using UnityEngine;
 using System.Collections;
 
+/// <summary>
+/// UIMgr只需要创建各种Command就可以实现各种操作
+/// </summary>
 public class UIMgr:EventNode
 {
     private static UIMgr instance;
@@ -45,7 +48,204 @@ public class UIMgr:EventNode
         }
     }
 
+    public List<Command> cmdList = new List<Command>();
 
+    internal Transform UIROOT = null;
+    private void Awake()
+    {
+        UIROOT = this.transform.Find("UIROOT");
+        instance = this;
+        DontDestroyOnLoad(this.gameObject);
+    }
+    /// <summary>
+    /// 创建UI
+    /// 外界方法将创建ui的命令加入命令列表 实际内部调用为_Create方法
+    /// </summary>
+    /// <param name="uiName">UI名称</param>
+    /// <param name="type">要绑定的脚本</param>
+    /// <param name="listener">创建完成的回调</param>
+    public void CreateUI(String uiName,Type type,ILoadUIListener listener)
+    {
+        cmdList.Add(Command.CreateCmd(type, uiName, listener));
+    }
+    private void _Create(Command cmd)
+    {
+        BaseUI ui = null;
+        mDicUI.TryGetValue(cmd.uiName, out ui);
+        if (ui!=null)
+        {
+            if (cmd.listener!=null)
+            {
+                cmd.listener.Finish(ui);
+            }
+            else
+            {
+                //从资源管理中使用读取方法获取UI资源（prefab）
+                //ResMgr.Instance.Load(cmd.uiName, new LoadResFinish(cmd));
+            }
+        }
+    }
+    public class lis : ILoadUIListener
+    {
+        void ILoadUIListener.Failure()
+        {
+            throw new NotImplementedException();
+        }
+
+        void ILoadUIListener.Finish(BaseUI uI)
+        {
+            throw new NotImplementedException();
+        }
+    }
+    public void ShowUI(string uiName,Type type,ILoadUIListener lis,object param=null,bool createcancall=false)
+    {
+        BaseUI ui = null;
+        mDicUI.TryGetValue(uiName, out ui);
+        if (ui==null)
+        {
+            cmdList.Add(Command.CreateAndShowCMD(uiName, type, lis, param, createcancall));
+        }
+        else
+        {
+            cmdList.Add(Command.ShowCMD(uiName, lis, param, createcancall));
+        }
+    }
+    /// <summary>
+    /// 显示一个界面
+    /// </summary>
+    /// <param name="cmd"></param>
+    private void _ShowUI(Command cmd)
+    {
+        BaseUI u = null;
+        mDicUI.TryGetValue(cmd.uiName, out u);
+        if (u!=null)
+        {
+            if (cmd.listener!=null)
+            {
+                cmd.listener.Finish(u);
+            }
+            u.Show();
+        }
+    }
+
+    /// <summary>
+    /// 外部调用隐藏ui
+    /// UIMgr.Instance.HideUI("UINAME")
+    /// </summary>
+    /// <param name="uiName"></param>
+    public void HideUI(string uiName)
+    {
+        cmdList.Add(Command.HideCmd(uiName));
+    }
+
+    private void _HideUI(Command cmd)
+    {
+        BaseUI u = null;
+        mDicUI.TryGetValue(cmd.uiName, out u);
+        if (u!=null)
+        {
+            u.Hide();
+        }
+    }
+
+    /// <summary>
+    /// 删除UI
+    /// </summary>
+    /// <param name="name">UI名称</param>
+    public void DestroyUI(string name)
+    {
+        cmdList.Add(Command.DestroyCmd(name));
+    }
+
+    private void _DestroyUI(Command cmd)
+    {
+        BaseUI ui = null;
+        mDicUI.TryGetValue(cmd.uiName, out ui);
+        if (ui!=null)
+        {
+            mDicUI.Remove(ui.UIName);
+            Destroy(ui.CacheGameObject);
+            
+        }
+    }
+    private void Update()
+    {
+        lis c = new lis();
+        GameObject gam = new GameObject();
+        ShowUI("123", typeof(GameObject), c, gam, true);
+        if (cmdList.Count>0)
+        {
+            Command tempcmd = null;
+            tempcmd = cmdList[0];
+            if (tempcmd==null)
+            {
+                cmdList.RemoveAt(0);
+            }
+            else
+            {
+                switch (tempcmd.cmdType)
+                {
+                    case Command.CmdType.CreateAndShow:
+                        _Create(tempcmd);
+                        break;
+                    case Command.CmdType.Create:
+                        _Create(tempcmd);
+                        break;
+                    case Command.CmdType.Show:
+                        _ShowUI(tempcmd);
+                        break;
+                    case Command.CmdType.Hide:
+                        _HideUI(tempcmd);
+                        break;
+                    case Command.CmdType.Destroy:
+                        _DestroyUI(tempcmd);
+                        break;
+                    default:
+                        break;
+                }
+                cmdList.RemoveAt(0);
+            }
+        }
+    }
+
+}
+public class LoadResFinish:IResLoadListener
+{
+    public Command cmd;
+    public LoadResFinish(Command _cmd)
+    {
+        cmd = _cmd;
+    }
+    public void Finish(object asset)
+    {
+        if (cmd==null)
+        {
+            return;
+        }
+        GameObject gameObject = UnityEngine.GameObject.Instantiate<GameObject>(asset as GameObject);
+        gameObject.SetActive(false);
+        BaseUI ui = gameObject.AddComponent(cmd.type) as BaseUI;
+        ui.UIInit();
+        ui.UIName = cmd.uiName;
+        gameObject.name = ui.UIName;
+        ui.CacheTransform.SetParent(UIMgr.Instance.UIROOT, false);
+        UIMgr.Instance.AddUI(ui);
+        if (cmd.cmdType==Command.CmdType.CreateAndShow)
+        {
+            UIMgr.Instance.ShowUI(cmd.uiName, cmd.type, cmd.listener);
+        }
+        else if (cmd.createCanCall&&cmd.listener!=null)
+        {
+            cmd.listener.Finish(ui);
+        }
+    }
+    public void Failure()
+    {
+        if (cmd.createCanCall&&cmd.listener!=null)
+        {
+            cmd.listener.Failure();
+        }
+    }
 }
 public interface ILoadUIListener
 {
